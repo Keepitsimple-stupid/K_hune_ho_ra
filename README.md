@@ -72,14 +72,6 @@ You can change the model by editing .env (see Configuration).
 
 ## Configuration
 
-Copy the example configuration file and edit as needed:
-
-```bash
-cp .env.example .env
-```
-
-Key settings in .env:
-
 | Variable | Description | Default |
 |----------|-------------|---------|
 | LLM_MODEL_PATH | Path to GGUF model file | models/qwen2.5-7b-instruct-q4_K_M.gguf |
