@@ -22,7 +22,7 @@ from src.synthesizer import Synthesizer
 def print_header():
     """Display the application header with styling."""
     print("\n" + "="*70)
-    print("  KHUNEHO? Neural News Analysis System")
+    print("  K_HUNE_HORA? Neural News Analysis System")
     print("  Multi-Domain AI-Powered Topic Analysis")
     print("="*70)
     print("\nCommands: Enter a topic | Type 'exit' to quit\n")
