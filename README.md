@@ -179,10 +179,6 @@ Reduce N_CTX (e.g., 4096) or MAX_TOKENS (1024). Switch to CPU by setting N_GPU_L
 
 Set N_GPU_LAYERS=0 in .env; CPU inference is slower (2-5 tokens/sec) but works.
 
-## License
-
-MIT License. See [LICENSE](LICENSE) file for details.
-
 ## Contributing
 
 Issues and pull requests are welcome. Please follow existing code style and include tests where applicable.
