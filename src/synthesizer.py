@@ -1,12 +1,39 @@
+"""
+Report synthesis module for the Neural News Analysis System.
+
+This module combines predictions from multiple analysis domains into a comprehensive
+report with weighted domain analysis, timelines, and source citations.
+"""
+
 from src.config import config
 from datetime import datetime
 
+
 class Synthesizer:
+    """
+    Synthesizes multi-domain analysis results into a comprehensive report.
+    
+    The Synthesizer applies domain-specific weights to prioritize relevant insights,
+    builds chronological timelines, and formats predictions for readability.
+    """
+    
     def __init__(self):
+        """Initialize the synthesizer with domain weights from configuration."""
         self.weights = config.DOMAIN_WEIGHTS
     
     def compute_weights(self, topic: str) -> dict:
-        # Simple dynamic: boost if domain word appears in topic
+        """
+        Dynamically adjust domain weights based on topic relevance.
+        
+        If a domain name appears in the topic query, its weight is boosted
+        to increase its influence in the final report.
+        
+        Args:
+            topic: The search topic string
+            
+        Returns:
+            Dictionary of domain names to adjusted weights
+        """
         topic_lower = topic.lower()
         boosted = self.weights.copy()
         for d in boosted:
@@ -15,6 +42,15 @@ class Synthesizer:
         return boosted
     
     def build_timeline(self, articles):
+        """
+        Build a chronological timeline from article dates.
+        
+        Args:
+            articles: List of article dictionaries with 'date' and 'title' keys
+            
+        Returns:
+            List of up to 10 timeline entries sorted by date
+        """
         timeline = []
         for a in articles:
             if a.get("date"):
@@ -22,52 +58,74 @@ class Synthesizer:
         timeline.sort(key=lambda x: x["date"])
         return timeline[:10]
     
-    def generate_scenarios(self, results):
-        scenarios = []
-        if "predictive" in results and "error" not in results["predictive"]:
-            p = results["predictive"]
-            scenarios.append(f"Short-term: {p.get('short_term_outlook', 'N/A')}")
-            scenarios.append(f"Long-term: {p.get('long_term_outlook', 'N/A')}")
-        else:
-            scenarios.append("No clear prediction from predictive agent.")
-        return "\n".join(scenarios)
+    def format_predictions(self, domain, data):
+        """
+        Format domain predictions into a readable string.
+        
+        Dynamically handles domain-specific fields (e.g., affected_group, sector)
+        in addition to the standard prediction, confidence, and timeline fields.
+        
+        Args:
+            domain: The domain name for context
+            data: Dictionary containing 'predictions' list
+            
+        Returns:
+            Formatted string of predictions
+        """
+        if "predictions" not in data or not data["predictions"]:
+            return "  No predictions generated.\n"
+        lines = []
+        for i, pred in enumerate(data["predictions"], 1):
+            lines.append(f"    {i}. {pred.get('prediction', 'N/A')}")
+            lines.append(f"       Confidence: {pred.get('confidence', 'N/A')} | Timeline: {pred.get('timeline', 'N/A')}")
+            # Dynamically add domain-specific fields (affected_group, sector, etc.)
+            extra_fields = [k for k in pred.keys() if k not in ['prediction', 'confidence', 'timeline']]
+            for field in extra_fields:
+                lines.append(f"       {field.replace('_',' ').title()}: {pred[field]}")
+            lines.append("")  # empty line between predictions
+        return "\n".join(lines)
     
     def final_report(self, topic, articles, agent_results):
+        """
+        Generate the final comprehensive analysis report.
+        
+        Combines weighted domain predictions, chronological timeline,
+        and source citations into a single formatted report.
+        
+        Args:
+            topic: The analysis topic
+            articles: List of retrieved news articles
+            agent_results: Dictionary of domain analysis results
+            
+        Returns:
+            Formatted report string
+        """
         weights = self.compute_weights(topic)
-        top_domains = sorted(weights.items(), key=lambda x: x[1], reverse=True)[:3]
         timeline = self.build_timeline(articles)
-        scenarios = self.generate_scenarios(agent_results)
         
         report = f"""
------- ANALYSIS REPORT ------
+------ IN-DEPTH PREDICTIONS REPORT ------
 
 Topic: {topic}
 Generated from {len(articles)} news articles
 Timestamp: {datetime.now().isoformat()}
 
-== TOP INFLUENCING DOMAINS ==
+=== DOMAIN-WISE PREDICTIONS (5-10 each) ===
 """
-        for d, w in top_domains:
-            report += f"  - {d.upper()} (weight {w:.2f})\n"
-        
-        report += "\n== DOMAIN INSIGHTS ==\n"
-        for domain in config.DOMAINS[:5]:  # show first 5 for brevity
-            if domain in agent_results and "error" not in agent_results[domain]:
-                res = agent_results[domain]
-                report += f"\n[{domain.upper()}]\n"
-                for k, v in res.items():
-                    if isinstance(v, list):
-                        v = ", ".join(v)
-                    report += f"  {k}: {v}\n"
+        for domain in config.DOMAINS:
+            weight = weights.get(domain, 0.5)
+            report += f"\n## {domain.upper()} (weight {weight:.2f})\n"
+            if domain in agent_results and "predictions" in agent_results[domain]:
+                report += self.format_predictions(domain, agent_results[domain])
+            else:
+                report += "  Failed to generate predictions.\n"
         
         if timeline:
-            report += "\n== TIMELINE ==\n"
+            report += "\n=== TIMELINE OF SOURCES ===\n"
             for t in timeline:
                 report += f"  {t['date']}: {t['title']}\n"
         
-        report += f"\n== FUTURE SCENARIOS ==\n{scenarios}\n"
-        
-        report += "\n== SOURCES ==\n"
+        report += "\n=== FULL NEWS SOURCES ===\n"
         for i, a in enumerate(articles, 1):
             report += f"{i}. {a['title']}\n   {a['url']}\n   Date: {a.get('date','unknown')}\n\n"
         

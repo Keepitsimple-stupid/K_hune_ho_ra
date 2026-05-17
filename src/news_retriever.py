@@ -1,8 +1,17 @@
+"""
+News retrieval module with multi-backend support for the Neural News Analysis System.
+
+This module provides resilient news article retrieval using multiple backends:
+- GNews (Google News RSS) as primary backend (no API key required)
+- DuckDuckGo search as fallback backend with rate limiting protection
+"""
+
 import logging
 import random
 import time
 from typing import List, Dict, Any
 
+# Optional backend imports with graceful degradation
 try:
     from gnews import GNews
     GNEWS_AVAILABLE = True
@@ -18,23 +27,28 @@ except ImportError:
     logging.warning("duckduckgo-search package not installed. Please install it with: pip install duckduckgo-search")
 
 class NewsRetriever:
-    """A resilient news retriever that fetches articles using multiple backends."""
+    """
+    Resilient news retriever with multi-backend support.
+    
+    Prioritizes GNews for reliability and falls back to DuckDuckGo if needed.
+    Implements duplicate removal, rate limiting protection, and graceful degradation.
+    """
 
     def __init__(self, max_articles: int = 15, time_range: str = "week", verbose: bool = False):
         """
         Initialize the NewsRetriever.
 
         Args:
-            max_articles: Maximum number of articles to retrieve
-            time_range: Time range for news search ('day', 'week', 'month')
-            verbose: Enable verbose logging
+            max_articles: Maximum number of articles to retrieve per search
+            time_range: Time filter for news search ('day', 'week', or 'month')
+            verbose: Enable verbose logging for debugging
         """
         self.max_articles = max_articles
         self.time_range = time_range
         self.verbose = verbose
         self.logger = logging.getLogger(__name__)
 
-        # Map time range to days for GNews
+        # Map time range strings to day counts for GNews API
         self._days_map = {
             "day": 1,
             "week": 7,
@@ -46,14 +60,15 @@ class NewsRetriever:
         """
         Search for news articles using available backends.
 
-        Prioritizes GNews (Google News RSS) first as it's more reliable and
-        doesn't require API keys. Falls back to DuckDuckGo if needed.
+        Tries GNews first (more reliable, no API key required), then falls back
+        to DuckDuckGo if GNews fails or returns no results. Removes duplicate
+        articles by URL before returning.
 
         Args:
             query: Search query string
 
         Returns:
-            List of article dictionaries with title, url, snippet, date
+            List of article dictionaries with title, url, snippet, date, and source
         """
         if self.verbose:
             self.logger.info(f"Searching for news: {query}")
@@ -86,7 +101,18 @@ class NewsRetriever:
         return []
 
     def _search_gnews(self, query: str) -> List[Dict[str, Any]]:
-        """Search using GNews (Google News RSS)."""
+        """
+        Search for news using GNews (Google News RSS backend).
+        
+        GNews provides reliable news aggregation without requiring API keys.
+        Returns articles with title, URL, description, publication date, and source.
+
+        Args:
+            query: Search query string
+            
+        Returns:
+            List of article dictionaries or empty list on error
+        """
         try:
             google_news = GNews(
                 language='en',
@@ -117,7 +143,18 @@ class NewsRetriever:
             return []
 
     def _search_duckduckgo(self, query: str) -> List[Dict[str, Any]]:
-        """Fallback search using DuckDuckGo with retry logic."""
+        """
+        Fallback search using DuckDuckGo with rate limiting protection.
+        
+        Adds a random delay (1-3 seconds) before each request to avoid rate limits.
+        Appends 'news' to the query to focus results on news content.
+
+        Args:
+            query: Search query string
+            
+        Returns:
+            List of article dictionaries or empty list on error
+        """
         try:
             # Add a small delay to avoid rate limiting
             time.sleep(random.uniform(1, 3))
